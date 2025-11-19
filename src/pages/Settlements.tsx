@@ -1,162 +1,82 @@
-// START OF FIXED Settlements.tsx
-import { useState, useEffect } from 'react';
-import { storage, User, Group, Expense, Settlement } from '@/lib/storage';
-import { simplifyDebts, getBalances } from '@/lib/new-settlement-logic';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeftRight, CheckCircle, Users as UsersIcon } from 'lucide-react';
-import { toast } from 'sonner';
+// START OF FILE: new-settlement-logic.ts
+// Completely standalone simplified settlement + balance calculator
+// Drop this file into: src/lib/new-settlement-logic.ts
 
-export default function Settlements() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [settlements, setSettlements] = useState<Settlement[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
-  const [debts, setDebts] = useState<any[]>([]);
-  const [balances, setBalances] = useState<any[]>([]);
+export interface BalanceItem {
+  userId: string;
+  balance: number;
+}
 
-  useEffect(() => {
-    loadData();
-  }, []);
+// Compute balances per user
+export function getBalances(expenses: any[], users: any[], group?: any): BalanceItem[] {
+  const balances: Record<string, number> = {};
 
-  useEffect(() => {
-    calculateEverything();
-  }, [users, groups, expenses, selectedGroupId]);
+  users.forEach(u => {
+    // If group mode: ignore users not in this group
+    if (group && !group.members.includes(u.id)) return;
+    balances[u.id] = 0;
+  });
 
-  const loadData = () => {
-    setUsers(storage.getUsers());
-    setGroups(storage.getGroups());
-    setExpenses(storage.getExpenses());
-    setSettlements(storage.getSettlements());
-  };
+  for (const e of expenses) {
+    const payer = e.paidBy;
+    const amount = Number(e.amount);
 
-  const calculateEverything = () => {
-    const filtered = selectedGroupId === 'all' ? expenses : expenses.filter(e => e.groupId === selectedGroupId);
+    // Skip expenses with unknown users
+    if (!balances.hasOwnProperty(payer)) continue;
 
-    const group = selectedGroupId === 'all' ? undefined : groups.find(g => g.id === selectedGroupId);
+    balances[payer] += amount;
 
-    const bal = getBalances(filtered, users, group);
-    const simplified = simplifyDebts(bal);
+    // Split equally or custom
+    if (e.splitType === 'equal') {
+      const per = amount / e.participants.length;
+      e.participants.forEach((uid: string) => {
+        if (!balances.hasOwnProperty(uid)) return;
+        balances[uid] -= per;
+      });
+    }
 
-    setBalances(bal);
-    setDebts(simplified);
-  };
+    if (e.splitType === 'custom') {
+      Object.entries(e.customShares || {}).forEach(([uid, share]) => {
+        if (!balances.hasOwnProperty(uid)) return;
+        balances[uid] -= Number(share);
+      });
+    }
+  }
 
-  const settleTransaction = (d: any) => {
-    const s: Settlement = {
-      id: `st-${Date.now()}`,
-      from: d.from,
-      to: d.to,
-      amount: d.amount,
-      groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
-      date: new Date().toISOString().split('T')[0]
-    };
+  return Object.keys(balances).map(uid => ({ userId: uid, balance: balances[uid] }));
+}
 
-    storage.saveSettlement(s);
-    loadData();
-    toast.success('Settlement recorded');
-  };
+// Simplify balances to minimal transactions
+export function simplifyDebts(balances: BalanceItem[]) {
+  const debtors = [] as { id: string; amount: number }[];
+  const creditors = [] as { id: string; amount: number }[];
 
-  const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Unknown';
-  const getGroupName = (id: string) => groups.find(g => g.id === id)?.name || 'Unknown';
+  for (const b of balances) {
+    if (b.balance < -0.01) debtors.push({ id: b.userId, amount: -b.balance });
+    if (b.balance > 0.01) creditors.push({ id: b.userId, amount: b.balance });
+  }
 
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Settlements</h1>
-          <p className="text-muted-foreground">Simplified debt summary</p>
-        </div>
-        <div className="w-64">
-          <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Groups</SelectItem>
-              {groups.map(g => (
-                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+  const result: { from: string; to: string; amount: number }[] = [];
 
-      <Card>
-        <CardHeader>
-          <CardTitle>User Balances</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {balances.map(b => (
-              <div key={b.userId} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                    <UsersIcon className="w-5 h-5 text-primary-foreground" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{getUserName(b.userId)}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {b.balance >= 0 ? `Gets ₹${b.balance.toFixed(2)}` : `Owes ₹${Math.abs(b.balance).toFixed(2)}`}
-                    </p>
-                  </div>
-                </div>
-                <p className={`text-lg font-bold ${b.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>₹{b.balance.toFixed(2)}</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+  let i = 0;
+  let j = 0;
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Pending Settlements</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {debts.length === 0 ? (
-            <p className="text-center py-10">All settled!</p>
-          ) : (
-            <div className="space-y-3">
-              {debts.map((d, i) => (
-                <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{getUserName(d.from)} pays {getUserName(d.to)}</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <p className="text-xl font-bold">₹{d.amount.toFixed(2)}</p>
-                    <Button onClick={() => settleTransaction(d)}>Settle</Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+  while (i < debtors.length && j < creditors.length) {
+    const d = debtors[i];
+    const c = creditors[j];
 
-      {settlements.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Settlement History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {settlements.slice(-12).reverse().map(s => (
-                <div key={s.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{getUserName(s.from)} → {getUserName(s.to)}</p>
-                    <p className="text-sm text-muted-foreground">{s.date} {s.groupId && `• ${getGroupName(s.groupId)}`}</p>
-                  </div>
-                  <strong className="text-green-600">₹{s.amount.toFixed(2)}</strong>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
+    const settled = Math.min(d.amount, c.amount);
+
+    result.push({ from: d.id, to: c.id, amount: Number(settled.toFixed(2)) });
+
+    d.amount -= settled;
+    c.amount -= settled;
+
+    if (d.amount < 0.01) i++;
+    if (c.amount < 0.01) j++;
+  }
+
+  return result;
 }
 
 // END OF FILE
