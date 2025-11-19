@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Trash2, Edit, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,6 +28,7 @@ export default function Expenses() {
     payerId: '',
     splitMode: 'equal' as SplitMode,
     notes: '',
+    selectedMembers: [] as string[],
   });
 
   useEffect(() => {
@@ -59,7 +61,12 @@ export default function Expenses() {
       return;
     }
 
-    const splits = calculateSplits(amount, formData.splitMode, group.members);
+    if (formData.selectedMembers.length === 0) {
+      toast.error('Select at least one member to split with');
+      return;
+    }
+
+    const splits = calculateSplits(amount, formData.splitMode, formData.selectedMembers);
 
     const expense: Expense = {
       id: editingExpense?.id || `expense-${Date.now()}`,
@@ -92,6 +99,7 @@ export default function Expenses() {
       payerId: expense.payers[0]?.userId || '',
       splitMode: expense.splitMode,
       notes: expense.notes || '',
+      selectedMembers: expense.splits.map(s => s.userId),
     });
     setIsDialogOpen(true);
   };
@@ -116,11 +124,23 @@ export default function Expenses() {
       payerId: '',
       splitMode: 'equal',
       notes: '',
+      selectedMembers: [],
     });
   };
 
   const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Unknown';
   const getGroupName = (id: string) => groups.find(g => g.id === id)?.name || 'Unknown';
+  
+  const selectedGroup = groups.find(g => g.id === formData.groupId);
+  
+  const toggleMember = (userId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedMembers: prev.selectedMembers.includes(userId)
+        ? prev.selectedMembers.filter(id => id !== userId)
+        : [...prev.selectedMembers, userId],
+    }));
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -199,6 +219,7 @@ export default function Expenses() {
                         ...formData,
                         groupId: value,
                         payerId: group?.members[0] || '',
+                        selectedMembers: group?.members || [],
                       });
                     }}
                   >
@@ -232,6 +253,24 @@ export default function Expenses() {
                             ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Split Between *</Label>
+                      <p className="text-sm text-muted-foreground">Select members to split this expense</p>
+                      <div className="space-y-2 border border-border rounded-lg p-3 max-h-48 overflow-y-auto">
+                        {selectedGroup?.members.map((memberId) => (
+                          <div key={memberId} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`member-${memberId}`}
+                              checked={formData.selectedMembers.includes(memberId)}
+                              onCheckedChange={() => toggleMember(memberId)}
+                            />
+                            <label htmlFor={`member-${memberId}`} className="text-sm font-medium cursor-pointer">
+                              {getUserName(memberId)}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="splitMode">Split Mode *</Label>

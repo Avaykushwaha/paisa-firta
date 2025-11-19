@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Trash2, Edit, FolderOpen, Users as UsersIcon, Heart } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 
 export default function Groups() {
@@ -176,6 +177,88 @@ export default function Groups() {
                   onCheckedChange={(checked) => setFormData({ ...formData, coupleMode: checked })}
                 />
               </div>
+              {formData.coupleMode && (
+                <div className="space-y-2">
+                  <Label>Couple Pairs</Label>
+                  <p className="text-sm text-muted-foreground mb-2">Select two members to form a couple</p>
+                  {formData.couples.map((couple, index) => (
+                    <div key={index} className="flex items-center gap-2 p-2 border border-border rounded-lg">
+                      <Heart className="w-4 h-4 text-secondary" />
+                      <Select
+                        value={couple[0]}
+                        onValueChange={(value) => {
+                          const newCouples = [...formData.couples];
+                          newCouples[index] = [value, couple[1]];
+                          setFormData({ ...formData, couples: newCouples });
+                        }}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Select first member" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {formData.members.map(memberId => (
+                            <SelectItem key={memberId} value={memberId}>
+                              {getUserName(memberId)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <span className="text-muted-foreground">+</span>
+                      <Select
+                        value={couple[1]}
+                        onValueChange={(value) => {
+                          const newCouples = [...formData.couples];
+                          newCouples[index] = [couple[0], value];
+                          setFormData({ ...formData, couples: newCouples });
+                        }}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Select second member" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {formData.members.map(memberId => (
+                            <SelectItem key={memberId} value={memberId}>
+                              {getUserName(memberId)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          const newCouples = formData.couples.filter((_, i) => i !== index);
+                          setFormData({ ...formData, couples: newCouples });
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const availableMembers = formData.members.filter(
+                        m => !formData.couples.some(c => c.includes(m))
+                      );
+                      if (availableMembers.length >= 2) {
+                        setFormData({
+                          ...formData,
+                          couples: [...formData.couples, [availableMembers[0], availableMembers[1]]]
+                        });
+                      } else {
+                        toast.error('Not enough available members to form a couple');
+                      }
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Couple
+                  </Button>
+                </div>
+              )}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={handleDialogClose}>
                   Cancel
