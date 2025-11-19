@@ -120,7 +120,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              ₹{users.length > 0 ? getUserBalance(users[0].id, expenses).toFixed(2) : '0.00'}
+              {currency}{users.length > 0 ? getUserBalance(users[0].id, expenses).toFixed(2) : '0.00'}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {getUserBalance(users[0]?.id || '', expenses) >= 0 ? 'You are owed' : 'You owe'}
@@ -145,7 +145,7 @@ export default function Dashboard() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={(entry) => `${entry.name}: ₹${entry.value.toFixed(0)}`}
+                    label={(entry) => `${entry.name}: ${currency}${entry.value.toFixed(0)}`}
                     outerRadius={100}
                     fill="#8884d8"
                     dataKey="value"
@@ -238,7 +238,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-foreground">₹{expense.amount.toFixed(2)}</p>
+                      <p className="font-semibold text-foreground">{currency}{expense.amount.toFixed(2)}</p>
                       <p className="text-xs text-muted-foreground">{expense.splits.length} people</p>
                     </div>
                   </div>
