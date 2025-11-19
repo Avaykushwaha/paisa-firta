@@ -23,6 +23,7 @@ export default function Groups() {
     members: [] as string[],
     couples: [] as [string, string][],
     coupleMode: false,
+    coupleDisplayNames: {} as Record<string, string>,
   });
 
   useEffect(() => {
@@ -54,6 +55,7 @@ export default function Groups() {
       members: formData.members,
       couples: formData.couples,
       coupleMode: formData.coupleMode,
+      coupleDisplayNames: formData.coupleMode ? formData.coupleDisplayNames : {},
       createdAt: editingGroup?.createdAt || new Date().toISOString(),
     };
 
@@ -71,6 +73,7 @@ export default function Groups() {
       members: group.members,
       couples: group.couples || [],
       coupleMode: group.coupleMode || false,
+      coupleDisplayNames: group.coupleDisplayNames || {},
     });
     setIsDialogOpen(true);
   };
@@ -92,6 +95,7 @@ export default function Groups() {
       members: [],
       couples: [],
       coupleMode: false,
+      coupleDisplayNames: {},
     });
   };
 
@@ -181,61 +185,115 @@ export default function Groups() {
                 <div className="space-y-2">
                   <Label>Couple Pairs</Label>
                   <p className="text-sm text-muted-foreground mb-2">Select two members to form a couple</p>
-                  {formData.couples.map((couple, index) => (
-                    <div key={index} className="flex items-center gap-2 p-2 border border-border rounded-lg">
-                      <Heart className="w-4 h-4 text-secondary" />
-                      <Select
-                        value={couple[0]}
-                        onValueChange={(value) => {
-                          const newCouples = [...formData.couples];
-                          newCouples[index] = [value, couple[1]];
-                          setFormData({ ...formData, couples: newCouples });
-                        }}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Select first member" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {formData.members.map(memberId => (
-                            <SelectItem key={memberId} value={memberId}>
-                              {getUserName(memberId)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <span className="text-muted-foreground">+</span>
-                      <Select
-                        value={couple[1]}
-                        onValueChange={(value) => {
-                          const newCouples = [...formData.couples];
-                          newCouples[index] = [couple[0], value];
-                          setFormData({ ...formData, couples: newCouples });
-                        }}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Select second member" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {formData.members.map(memberId => (
-                            <SelectItem key={memberId} value={memberId}>
-                              {getUserName(memberId)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          const newCouples = formData.couples.filter((_, i) => i !== index);
-                          setFormData({ ...formData, couples: newCouples });
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
+                  {formData.couples.map((couple, index) => {
+                    const coupleKey = `${couple[0]}-${couple[1]}`;
+                    const displayUserId = formData.coupleDisplayNames[coupleKey] || couple[0];
+                    
+                    return (
+                      <div key={index} className="space-y-2 p-3 border border-border rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Heart className="w-4 h-4 text-secondary" />
+                          <Select
+                            value={couple[0]}
+                            onValueChange={(value) => {
+                              const newCouples = [...formData.couples];
+                              const oldKey = `${couple[0]}-${couple[1]}`;
+                              newCouples[index] = [value, couple[1]];
+                              const newKey = `${value}-${couple[1]}`;
+                              const newDisplayNames = { ...formData.coupleDisplayNames };
+                              if (newDisplayNames[oldKey]) {
+                                newDisplayNames[newKey] = newDisplayNames[oldKey];
+                                delete newDisplayNames[oldKey];
+                              }
+                              setFormData({ ...formData, couples: newCouples, coupleDisplayNames: newDisplayNames });
+                            }}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Select first member" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {formData.members.map(memberId => (
+                                <SelectItem key={memberId} value={memberId}>
+                                  {getUserName(memberId)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-muted-foreground">+</span>
+                          <Select
+                            value={couple[1]}
+                            onValueChange={(value) => {
+                              const newCouples = [...formData.couples];
+                              const oldKey = `${couple[0]}-${couple[1]}`;
+                              newCouples[index] = [couple[0], value];
+                              const newKey = `${couple[0]}-${value}`;
+                              const newDisplayNames = { ...formData.coupleDisplayNames };
+                              if (newDisplayNames[oldKey]) {
+                                newDisplayNames[newKey] = newDisplayNames[oldKey];
+                                delete newDisplayNames[oldKey];
+                              }
+                              setFormData({ ...formData, couples: newCouples, coupleDisplayNames: newDisplayNames });
+                            }}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Select second member" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {formData.members.map(memberId => (
+                                <SelectItem key={memberId} value={memberId}>
+                                  {getUserName(memberId)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              const coupleKey = `${couple[0]}-${couple[1]}`;
+                              const newDisplayNames = { ...formData.coupleDisplayNames };
+                              delete newDisplayNames[coupleKey];
+                              const newCouples = formData.couples.filter((_, i) => i !== index);
+                              setFormData({ ...formData, couples: newCouples, coupleDisplayNames: newDisplayNames });
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        {couple[0] && couple[1] && (
+                          <div className="space-y-1 ml-8">
+                            <Label className="text-xs text-muted-foreground">Display name in reports</Label>
+                            <Select
+                              value={displayUserId}
+                              onValueChange={(value) => {
+                                const coupleKey = `${couple[0]}-${couple[1]}`;
+                                setFormData({
+                                  ...formData,
+                                  coupleDisplayNames: {
+                                    ...formData.coupleDisplayNames,
+                                    [coupleKey]: value,
+                                  },
+                                });
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={couple[0]}>
+                                  {getUserName(couple[0])}
+                                </SelectItem>
+                                <SelectItem value={couple[1]}>
+                                  {getUserName(couple[1])}
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   <Button
                     type="button"
                     variant="outline"

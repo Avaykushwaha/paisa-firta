@@ -15,6 +15,7 @@ export interface Group {
   members: string[]; // user IDs
   couples: [string, string][]; // pairs of user IDs
   coupleMode: boolean;
+  coupleDisplayNames: Record<string, string>; // couple pair key -> display user ID
   createdAt: string;
 }
 
