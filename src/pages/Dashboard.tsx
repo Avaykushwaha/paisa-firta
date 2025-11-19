@@ -15,7 +15,13 @@ export default function Dashboard() {
     setUsers(storage.getUsers());
     setGroups(storage.getGroups());
     setExpenses(storage.getExpenses());
+    setCurrency(storage.getSettings().currency);
   }, []);
+
+  const handleCurrencyChange = (newCurrency: string) => {
+    setCurrency(newCurrency);
+    storage.saveSettings({ currency: newCurrency });
+  };
 
   // Calculate stats
   const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);

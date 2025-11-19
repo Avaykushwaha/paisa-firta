@@ -55,11 +55,16 @@ export interface Settlement {
   notes?: string;
 }
 
+interface AppSettings {
+  currency: string;
+}
+
 interface AppData {
   users: User[];
   groups: Group[];
   expenses: Expense[];
   settlements: Settlement[];
+  settings?: AppSettings;
 }
 
 const STORAGE_KEY = 'paisa-firta-data';
@@ -68,9 +73,13 @@ export const storage = {
   getData(): AppData {
     const data = localStorage.getItem(STORAGE_KEY);
     if (!data) {
-      return { users: [], groups: [], expenses: [], settlements: [] };
+      return { users: [], groups: [], expenses: [], settlements: [], settings: { currency: '₹' } };
     }
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!parsed.settings) {
+      parsed.settings = { currency: '₹' };
+    }
+    return parsed;
   },
 
   saveData(data: AppData): void {
@@ -166,5 +175,16 @@ export const storage = {
 
   clearAll(): void {
     localStorage.removeItem(STORAGE_KEY);
+  },
+
+  // Settings
+  getSettings(): AppSettings {
+    return this.getData().settings || { currency: '₹' };
+  },
+
+  saveSettings(settings: AppSettings): void {
+    const data = this.getData();
+    data.settings = settings;
+    this.saveData(data);
   },
 };

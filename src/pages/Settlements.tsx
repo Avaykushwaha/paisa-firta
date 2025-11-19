@@ -15,6 +15,7 @@ export default function Settlements() {
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
   const [debts, setDebts] = useState<any[]>([]);
   const [balances, setBalances] = useState<any[]>([]);
+  const [currency, setCurrency] = useState('₹');
 
   useEffect(() => {
     loadData();
@@ -29,6 +30,7 @@ export default function Settlements() {
     setGroups(storage.getGroups());
     setExpenses(storage.getExpenses());
     setSettlements(storage.getSettlements());
+    setCurrency(storage.getSettings().currency);
   };
 
   const calculateEverything = () => {
@@ -40,10 +42,40 @@ export default function Settlements() {
       ? undefined
       : groups.find(g => g.id === selectedGroupId);
 
-    const balanceData = users.map(user => ({
+    let balanceData = users.map(user => ({
       userId: user.id,
       balance: getUserBalance(user.id, filtered)
     }));
+
+    // Handle couple mode - merge couple balances
+    if (group?.coupleMode && group.couples.length > 0) {
+      const coupleBalances: Record<string, number> = {};
+      
+      group.couples.forEach(([user1Id, user2Id]) => {
+        const balance1 = balanceData.find(b => b.userId === user1Id)?.balance || 0;
+        const balance2 = balanceData.find(b => b.userId === user2Id)?.balance || 0;
+        const combinedBalance = balance1 + balance2;
+        
+        const coupleKey = `${user1Id}-${user2Id}`;
+        const displayUserId = group.coupleDisplayNames?.[coupleKey] || user1Id;
+        
+        coupleBalances[displayUserId] = combinedBalance;
+      });
+
+      // Remove non-display users and update display users
+      balanceData = balanceData.filter(b => {
+        const isInCouple = group.couples.some(([u1, u2]) => u1 === b.userId || u2 === b.userId);
+        if (!isInCouple) return true;
+        
+        // Check if this is a display user
+        return Object.keys(coupleBalances).includes(b.userId);
+      }).map(b => {
+        if (coupleBalances[b.userId] !== undefined) {
+          return { ...b, balance: coupleBalances[b.userId] };
+        }
+        return b;
+      });
+    }
 
     const debtsData = calculateDebts(filtered, users, group);
 
@@ -118,8 +150,8 @@ export default function Settlements() {
                     <p className="font-medium">{getUserName(b.userId)}</p>
                     <p className="text-sm text-muted-foreground">
                       {b.balance >= 0
-                        ? `Gets ₹${b.balance.toFixed(2)}`
-                        : `Owes ₹${Math.abs(b.balance).toFixed(2)}`}
+                        ? `Gets ${currency}${b.balance.toFixed(2)}`
+                        : `Owes ${currency}${Math.abs(b.balance).toFixed(2)}`}
                     </p>
                   </div>
                 </div>
@@ -129,7 +161,7 @@ export default function Settlements() {
                     b.balance >= 0 ? 'text-green-600' : 'text-red-600'
                   }`}
                 >
-                  ₹{b.balance.toFixed(2)}
+                  {currency}{b.balance.toFixed(2)}
                 </p>
               </div>
             ))}
@@ -161,7 +193,7 @@ export default function Settlements() {
 
                   <div className="flex items-center gap-4">
                     <span className="text-xl font-bold">
-                      ₹{d.amount.toFixed(2)}
+                      {currency}{d.amount.toFixed(2)}
                     </span>
                     <Button onClick={() => settleTransaction(d)}>
                       Settle
@@ -201,7 +233,7 @@ export default function Settlements() {
                     </div>
 
                     <strong className="text-green-600">
-                      ₹{s.amount.toFixed(2)}
+                      {currency}{s.amount.toFixed(2)}
                     </strong>
                   </div>
                 ))}
