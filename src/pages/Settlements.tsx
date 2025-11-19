@@ -1,104 +1,162 @@
-// settlement.ts
+// START OF FIXED Settlements.tsx
+import { useState, useEffect } from 'react';
+import { storage, User, Group, Expense, Settlement } from '@/lib/storage';
+import { simplifyDebts, getBalances } from '@/lib/new-settlement-logic';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowLeftRight, CheckCircle, Users as UsersIcon } from 'lucide-react';
+import { toast } from 'sonner';
 
-export interface Debt {
-  from: string;   // user/couple ID
-  to: string;     // user/couple ID
-  amount: number; // Positive value
+export default function Settlements() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
+  const [debts, setDebts] = useState<any[]>([]);
+  const [balances, setBalances] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    calculateEverything();
+  }, [users, groups, expenses, selectedGroupId]);
+
+  const loadData = () => {
+    setUsers(storage.getUsers());
+    setGroups(storage.getGroups());
+    setExpenses(storage.getExpenses());
+    setSettlements(storage.getSettlements());
+  };
+
+  const calculateEverything = () => {
+    const filtered = selectedGroupId === 'all' ? expenses : expenses.filter(e => e.groupId === selectedGroupId);
+
+    const group = selectedGroupId === 'all' ? undefined : groups.find(g => g.id === selectedGroupId);
+
+    const bal = getBalances(filtered, users, group);
+    const simplified = simplifyDebts(bal);
+
+    setBalances(bal);
+    setDebts(simplified);
+  };
+
+  const settleTransaction = (d: any) => {
+    const s: Settlement = {
+      id: `st-${Date.now()}`,
+      from: d.from,
+      to: d.to,
+      amount: d.amount,
+      groupId: selectedGroupId === 'all' ? undefined : selectedGroupId,
+      date: new Date().toISOString().split('T')[0]
+    };
+
+    storage.saveSettlement(s);
+    loadData();
+    toast.success('Settlement recorded');
+  };
+
+  const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Unknown';
+  const getGroupName = (id: string) => groups.find(g => g.id === id)?.name || 'Unknown';
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Settlements</h1>
+          <p className="text-muted-foreground">Simplified debt summary</p>
+        </div>
+        <div className="w-64">
+          <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Groups</SelectItem>
+              {groups.map(g => (
+                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>User Balances</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {balances.map(b => (
+              <div key={b.userId} className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+                    <UsersIcon className="w-5 h-5 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-medium">{getUserName(b.userId)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {b.balance >= 0 ? `Gets ₹${b.balance.toFixed(2)}` : `Owes ₹${Math.abs(b.balance).toFixed(2)}`}
+                    </p>
+                  </div>
+                </div>
+                <p className={`text-lg font-bold ${b.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>₹{b.balance.toFixed(2)}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Pending Settlements</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {debts.length === 0 ? (
+            <p className="text-center py-10">All settled!</p>
+          ) : (
+            <div className="space-y-3">
+              {debts.map((d, i) => (
+                <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <p className="font-medium">{getUserName(d.from)} pays {getUserName(d.to)}</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <p className="text-xl font-bold">₹{d.amount.toFixed(2)}</p>
+                    <Button onClick={() => settleTransaction(d)}>Settle</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {settlements.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Settlement History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {settlements.slice(-12).reverse().map(s => (
+                <div key={s.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium">{getUserName(s.from)} → {getUserName(s.to)}</p>
+                    <p className="text-sm text-muted-foreground">{s.date} {s.groupId && `• ${getGroupName(s.groupId)}`}</p>
+                  </div>
+                  <strong className="text-green-600">₹{s.amount.toFixed(2)}</strong>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
 }
 
-export interface Expense {
-  payers: { userId: string; amount: number }[];
-  splits: { userId: string; amount: number }[];
-  groupId?: string;
-}
-
-export interface Group {
-  id: string;
-  name: string;
-  coupleMode?: boolean;
-  couples?: [string, string][];
-}
-
-export interface User {
-  id: string;
-  name: string;
-}
-
-// Core debt calculation with couple mode support
-export function calculateDebts(
-  expenses: Expense[],
-  users: User[],
-  group?: Group
-): Debt[] {
-  // Net balances for each user by sum of paid/owed per expense
-  const balances: Record<string, number> = {};
-  users.forEach(u => { balances[u.id] = 0; });
-
-  expenses.forEach(exp => {
-    exp.payers.forEach(payer => {
-      balances[payer.userId] += payer.amount;
-    });
-    exp.splits.forEach(split => {
-      balances[split.userId] -= split.amount;
-    });
-  });
-
-  // Couple mode: merge couple balances as single entity
-  let coupleMap: Record<string, string> = {};
-  const mergedBalances: Record<string, number> = {};
-  if (group?.coupleMode && group.couples?.length) {
-    group.couples.forEach(([id1, id2], idx) => {
-      const coupleId = `couple_${idx}_${id1}_${id2}`;
-      coupleMap[id1] = coupleId;
-      coupleMap[id2] = coupleId;
-      mergedBalances[coupleId] = (balances[id1] || 0) + (balances[id2] || 0);
-    });
-    // Add solo users
-    users.forEach(u => {
-      if (!coupleMap[u.id]) mergedBalances[u.id] = balances[u.id];
-    });
-  } else {
-    Object.assign(mergedBalances, balances);
-  }
-
-  // Find creditors/debtors for simplified settlement
-  const creditors: [string, number][] = [];
-  const debtors: [string, number][] = [];
-  Object.entries(mergedBalances).forEach(([id, bal]) => {
-    if (bal < 0) creditors.push([id, -bal]);
-    if (bal > 0) debtors.push([id, bal]);
-  });
-
-  // Greedy transaction minimization between creditors/debtors
-  const debts: Debt[] = [];
-  let credIdx = 0, debtIdx = 0;
-  while (credIdx < creditors.length && debtIdx < debtors.length) {
-    const [credId, credAmt] = creditors[credIdx];
-    const [debtId, debtAmt] = debtors[debtIdx];
-    const pay = Math.min(credAmt, debtAmt);
-    debts.push({ from: debtId, to: credId, amount: Math.round(pay * 100) / 100 });
-    creditors[credIdx][1] -= pay;
-    debtors[debtIdx][1] -= pay;
-    if (creditors[credIdx][1] === 0) credIdx++;
-    if (debtors[debtIdx][1] === 0) debtIdx++;
-  }
-
-  return debts;
-}
-
-// Utility function: calculate total user balance (positive: gets back)
-export function getUserBalance(
-  userId: string,
-  expenses: Expense[]
-): number {
-  let paid = 0, owed = 0;
-  expenses.forEach(exp => {
-    exp.payers.forEach(payer => {
-      if (payer.userId === userId) paid += payer.amount;
-    });
-    exp.splits.forEach(split => {
-      if (split.userId === userId) owed += split.amount;
-    });
-  });
-  return Math.round((paid - owed) * 100) / 100;
-}
+// END OF FILE
