@@ -29,6 +29,7 @@ export default function Expenses() {
     splitMode: 'equal' as SplitMode,
     notes: '',
     selectedMembers: [] as string[],
+    customValues: {} as Record<string, number>,
   });
 
   useEffect(() => {
@@ -66,7 +67,12 @@ export default function Expenses() {
       return;
     }
 
-    const splits = calculateSplits(amount, formData.splitMode, formData.selectedMembers);
+    // For custom split modes, get custom values
+    const customValuesArray = formData.splitMode !== 'equal' 
+      ? formData.selectedMembers.map(id => formData.customValues[id] || 0)
+      : undefined;
+
+    const splits = calculateSplits(amount, formData.splitMode, formData.selectedMembers, customValuesArray);
 
     const expense: Expense = {
       id: editingExpense?.id || `expense-${Date.now()}`,
@@ -90,6 +96,11 @@ export default function Expenses() {
 
   const handleEdit = (expense: Expense) => {
     setEditingExpense(expense);
+    const customValues: Record<string, number> = {};
+    expense.splits.forEach(split => {
+      customValues[split.userId] = split.amount;
+    });
+    
     setFormData({
       title: expense.title,
       amount: expense.amount.toString(),
@@ -100,6 +111,7 @@ export default function Expenses() {
       splitMode: expense.splitMode,
       notes: expense.notes || '',
       selectedMembers: expense.splits.map(s => s.userId),
+      customValues,
     });
     setIsDialogOpen(true);
   };
@@ -125,6 +137,7 @@ export default function Expenses() {
       splitMode: 'equal',
       notes: '',
       selectedMembers: [],
+      customValues: {},
     });
   };
 
@@ -139,6 +152,16 @@ export default function Expenses() {
       selectedMembers: prev.selectedMembers.includes(userId)
         ? prev.selectedMembers.filter(id => id !== userId)
         : [...prev.selectedMembers, userId],
+    }));
+  };
+
+  const updateCustomValue = (userId: string, value: number) => {
+    setFormData(prev => ({
+      ...prev,
+      customValues: {
+        ...prev.customValues,
+        [userId]: value,
+      },
     }));
   };
 
@@ -254,20 +277,34 @@ export default function Expenses() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 col-span-2">
                       <Label>Split Between *</Label>
-                      <p className="text-sm text-muted-foreground">Select members to split this expense</p>
-                      <div className="space-y-2 border border-border rounded-lg p-3 max-h-48 overflow-y-auto">
+                      <p className="text-sm text-muted-foreground">Select members and enter custom values if needed</p>
+                      <div className="space-y-2 border border-border rounded-lg p-3 max-h-64 overflow-y-auto">
                         {selectedGroup?.members.map((memberId) => (
-                          <div key={memberId} className="flex items-center space-x-2">
+                          <div key={memberId} className="flex items-center gap-3">
                             <Checkbox
                               id={`member-${memberId}`}
                               checked={formData.selectedMembers.includes(memberId)}
                               onCheckedChange={() => toggleMember(memberId)}
                             />
-                            <label htmlFor={`member-${memberId}`} className="text-sm font-medium cursor-pointer">
+                            <label htmlFor={`member-${memberId}`} className="text-sm font-medium cursor-pointer flex-1">
                               {getUserName(memberId)}
                             </label>
+                            {formData.selectedMembers.includes(memberId) && formData.splitMode !== 'equal' && (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder={
+                                  formData.splitMode === 'exact' ? '₹ Amount' :
+                                  formData.splitMode === 'percent' ? '% Percent' :
+                                  '# Shares'
+                                }
+                                value={formData.customValues[memberId] || ''}
+                                onChange={(e) => updateCustomValue(memberId, parseFloat(e.target.value) || 0)}
+                                className="w-32"
+                              />
+                            )}
                           </div>
                         ))}
                       </div>

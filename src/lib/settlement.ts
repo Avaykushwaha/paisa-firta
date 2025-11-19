@@ -40,6 +40,16 @@ export function calculateDebts(
       balances[user1Id] = combinedBalance;
       balances[user2Id] = combinedBalance;
     });
+    
+    // Use only the display name from each couple for calculations
+    group.couples.forEach(([user1Id, user2Id]) => {
+      const coupleKey = `${user1Id}-${user2Id}`;
+      const displayUserId = group.coupleDisplayNames?.[coupleKey] || user1Id;
+      const otherUserId = displayUserId === user1Id ? user2Id : user1Id;
+      
+      // Remove the non-display user from balance calculations
+      delete balances[otherUserId];
+    });
   }
 
   // Separate creditors (positive balance) and debtors (negative balance)

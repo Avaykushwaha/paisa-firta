@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { storage, User, Group, Expense, Settlement } from '@/lib/storage';
-import { simplifyDebts, getBalances } from '@/lib/new-settlement-logic';
+import { calculateDebts, getUserBalance } from '@/lib/settlement';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -40,11 +40,15 @@ export default function Settlements() {
       ? undefined
       : groups.find(g => g.id === selectedGroupId);
 
-    const b = getBalances(filtered, users, group);
-    const s = simplifyDebts(b);
+    const balanceData = users.map(user => ({
+      userId: user.id,
+      balance: getUserBalance(user.id, filtered)
+    }));
 
-    setBalances(b);
-    setDebts(s);
+    const debtsData = calculateDebts(filtered, users, group);
+
+    setBalances(balanceData);
+    setDebts(debtsData);
   };
 
   const settleTransaction = (d: any) => {
