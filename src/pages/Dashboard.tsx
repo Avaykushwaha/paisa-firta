@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [currency, setCurrency] = useState('₹');
 
   useEffect(() => {
     setUsers(storage.getUsers());
@@ -57,9 +58,24 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your expenses and settlements</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
+          <p className="text-muted-foreground">Overview of your expenses and settlements</p>
+        </div>
+        <div className="w-32">
+          <select 
+            value={currency} 
+            onChange={(e) => handleCurrencyChange(e.target.value)}
+            className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground"
+          >
+            <option value="₹">₹ INR</option>
+            <option value="$">$ USD</option>
+            <option value="€">€ EUR</option>
+            <option value="£">£ GBP</option>
+            <option value="¥">¥ JPY</option>
+          </select>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -70,7 +86,7 @@ export default function Dashboard() {
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">₹{totalExpenses.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-foreground">{currency}{totalExpenses.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">{expenses.length} transactions</p>
           </CardContent>
         </Card>
